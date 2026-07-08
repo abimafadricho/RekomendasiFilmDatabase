@@ -41,7 +41,7 @@ DB_CONFIG = {
 # Path ke file model hasil dari Google Colab
 # Salin file .npy dan .csv dari Google Drive ke folder ini
 MODEL_DIR  = "./model"
-OUTPUT_DIR = "./dataset/processed"
+OUTPUT_DIR = "./dataset/processed/ml1m"
  
 # Konfigurasi model
 DEFAULT_K      = 20    
@@ -58,19 +58,27 @@ print("  LOADING MODEL IBCF...")
 print("=" * 55)
  
 # Load similarity matrix (gunakan model terbaik = weighted/timestamp)
-path_sim = os.path.join(MODEL_DIR, "similarity_weighted.npy")
-if os.path.exists(path_sim):
-    SIM_MATRIX = np.load(path_sim, mmap_mode='r')
-    print(f"  ✅ Similarity matrix dimuat: {SIM_MATRIX.shape}")
+path_sim_weight = os.path.join(MODEL_DIR, "similarity_weighted.npy")
+if os.path.exists(path_sim_weight):
+    SIM_WEIGHTED = np.load(path_sim_weight, mmap_mode='r')
+    print(f"  ✅ Similarity matrix dimuat: {SIM_WEIGHTED.shape}")
 else:
-    SIM_MATRIX = None
+    SIM_WEIGHTED = None
     print(f"  ⚠️  similarity_weighted.npy tidak ditemukan di {MODEL_DIR}")
+
+path_sim_baseline = os.path.join(MODEL_DIR, "similarity_baseline.npy")
+if os.path.exists(path_sim_baseline):
+    SIM_BASELINE = np.load(path_sim_baseline, mmap_mode='r')
+    print(f"  ✅ Similarity matrix dimuat: {SIM_BASELINE.shape}")
+else:
+    SIM_BASELINE = None
+    print(f"  ⚠️  similarity_baseline.npy tidak ditemukan di {MODEL_DIR}")
  
 # Load train data untuk rebuild sparse matrix
-path_train = os.path.join(OUTPUT_DIR, "train.csv")
+path_train = os.path.join(OUTPUT_DIR, "train_flask.csv")
 if os.path.exists(path_train):
     df_train = pd.read_csv(path_train,
-    usecols=["user_encoded", "movie_encoded", "rating"])
+        usecols=["user_encoded", "movie_encoded", "rating"])
     N_USERS  = df_train["user_encoded"].max() + 1
     N_MOVIES = df_train["movie_encoded"].max() + 1
  
@@ -88,7 +96,7 @@ else:
     MATRIX_USER_ITEM = None
     N_USERS  = 0
     N_MOVIES = 0
-    print(f"  ⚠️  train.csv tidak ditemukan di {OUTPUT_DIR}")
+    print(f"  ⚠️  train_flask.csv tidak ditemukan di {OUTPUT_DIR}")
  
 # Load mapping & info film
 path_map_movie = os.path.join(OUTPUT_DIR, "mapping_movie.csv")
@@ -130,44 +138,45 @@ def get_movie_encoded(movie_id):
     return int(row["movie_encoded"].values[0]) if len(row) > 0 else None
  
  
-def prediksi_rating(user_encoded, movie_encoded, K=DEFAULT_K):
-    """Prediksi rating user terhadap film menggunakan IBCF."""
+def prediksi_rating(user_encoded, movie_encoded, K=DEFAULT_K, model="weighted"):
+    """Prediksi rating menggunakan model weighted atau baseline."""
+    SIM_MATRIX = SIM_WEIGHTED if model == "weighted" else SIM_BASELINE
+
     if SIM_MATRIX is None or MATRIX_USER_ITEM is None:
         return None
     if user_encoded >= N_USERS or movie_encoded >= N_MOVIES:
         return None
- 
+
     sim_scores   = SIM_MATRIX[movie_encoded]
     rated_movies = MATRIX_USER_ITEM[user_encoded].nonzero()[1]
- 
+
     if len(rated_movies) == 0:
         return None
- 
+
     sim_rated = sim_scores[rated_movies]
- 
-    # Ambil K tetangga terbaik
+
     if len(rated_movies) > K:
         top_k_idx    = np.argsort(sim_rated)[::-1][:K]
         rated_movies = rated_movies[top_k_idx]
         sim_rated    = sim_rated[top_k_idx]
- 
+
     mask         = sim_rated > 0
     sim_rated    = sim_rated[mask]
     rated_movies = rated_movies[mask]
- 
+
     if len(sim_rated) == 0:
         return None
- 
+
     user_ratings = np.array(
         MATRIX_USER_ITEM[user_encoded, rated_movies].todense()
     ).flatten()
- 
+
     pembilang = np.dot(sim_rated.astype(np.float32), user_ratings)
     penyebut  = np.sum(np.abs(sim_rated))
- 
+
     if penyebut == 0:
         return None
- 
+
     pred = float(pembilang / penyebut)
     return round(max(0.5, min(5.0, pred)), 2)
  
@@ -245,63 +254,148 @@ def ambil_detail_tmdb(title, year=None):
 
     except Exception:
         return None, None
+
+def pastikan_film_ada(db, movie_id):
+    """Cek apakah movie_id valid.
+    Untuk film numerik (Global): pastikan ada di movies atau movies_ml1m.
+    Untuk film Indonesia (M0xx): langsung izinkan karena tidak ada foreign key.
+    """
+    # Film Indonesia (string seperti M035) — langsung izinkan
+    try:
+        movie_id_int = int(movie_id)
+        is_numeric   = True
+    except (ValueError, TypeError):
+        return True  # film Indonesia, tidak perlu cek lebih lanjut
+
+    # Film Global (numerik) — pastikan ada di tabel movies
+    cur = db.cursor()
+    cur.execute("SELECT id FROM movies WHERE id = %s", (movie_id_int,))
+    if cur.fetchone():
+        return True
+
+    # Cari di movies_ml1m dan auto-insert ke movies
+    try:
+        cur.execute(
+            "SELECT id, title, genres, year FROM movies_ml1m WHERE id = %s",
+            (movie_id_int,)
+        )
+        film = cur.fetchone()
+        if film:
+            title  = str(film["title"])
+            genres = str(film["genres"]).replace("|", ", ") if film["genres"] else ""
+            tahun  = film["year"]
+
+            judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+            poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+
+            cur.execute("""
+                INSERT IGNORE INTO movies (id, title, genre, year, description, poster, sumber)
+                VALUES (%s, %s, %s, %s, %s, %s, 'movielens')
+            """, (movie_id_int, title, genres, tahun, deskripsi or '', poster_url or ''))
+            db.commit()
+            return True
+    except Exception as e:
+        print(f"  ⚠️ Gagal cari di movies_ml1m: {e}")
+
+    return False  # film numerik tidak ditemukan di mana pun
+
+    # ---------------------------------------------------------------
+    # Sumber 2: cari di top10_films.csv (fallback)
+    # ---------------------------------------------------------------
+    if DF_TOP10 is not None:
+        baris = DF_TOP10[DF_TOP10["movieId"] == movie_id]
+        if len(baris) > 0:
+            row    = baris.iloc[0]
+            title  = str(row.get("title")) if pd.notna(row.get("title")) else f"Film #{movie_id}"
+            genres = str(row.get("genres")).replace("|", ", ") if pd.notna(row.get("genres")) else ""
+            tahun  = int(row.get("tahun_rilis")) if pd.notna(row.get("tahun_rilis")) else None
+
+            judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+            poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+
+            try:
+                cur.execute("""
+                    INSERT INTO movies (id, title, genre, year, description, poster, sumber)
+                    VALUES (%s, %s, %s, %s, %s, %s, 'movielens')
+                """, (movie_id, title, genres, tahun, deskripsi or '', poster_url or ''))
+                db.commit()
+                return True
+            except Exception as e:
+                print(f"  ⚠️ Gagal insert dari CSV: {e}")
+
+    return False  # tidak ketemu di mana pun
  
-def hitung_top10(region="global", limit=10):
-    """Hitung Top-10 real-time. Dipanggil saat cache expired atau ada rating baru."""
+def hitung_top10(region="global", limit=30):
+    """Hitung Top-10 real-time berdasarkan time-decay weighting.
+    region: 'global' (MovieLens 1M) atau 'indonesia'
+    """
+
+    # ---------------------------------------------------------------
+    # Konfigurasi per region
+    # ---------------------------------------------------------------
+    if region == "indonesia":
+        MIN_RATING = 10
+    else:
+        MIN_RATING = 20
+
+    agg_key = "movie_id"
+
+    # ---------------------------------------------------------------
+    # Query data rating dari database
+    # ---------------------------------------------------------------
     db  = get_db()
     cur = db.cursor()
 
     if region == "indonesia":
         cur.execute("""
             SELECT movie_id, movie_title AS title, genre, year,
-                   rating, timestamp, NULL AS movie_encoded
+                   rating, timestamp
             FROM ratings_dataset_indonesia
             WHERE timestamp IS NOT NULL
 
             UNION ALL
 
             SELECT ri.movie_id, ri.movie_title, ri.genre, ri.year,
-                   r.rating, r.timestamp, NULL
+                   r.rating, r.timestamp
             FROM ratings r
             JOIN ratings_dataset_indonesia ri
                 ON CAST(r.movie_id AS CHAR) = ri.movie_id
             WHERE r.timestamp IS NOT NULL
         """)
-        MIN_RATING = 10
-        agg_key    = "movie_id"
+        cols = ["movie_id", "title", "genre", "year", "rating", "timestamp"]
 
     else:
         cur.execute("""
-            SELECT CAST(movie_id AS CHAR) AS movie_id,
-                   NULL, NULL, NULL,
-                   rating, timestamp, movie_encoded
-            FROM ratings_dataset
+            SELECT movie_id, rating, timestamp
+            FROM ratings_ml1m
             WHERE timestamp IS NOT NULL
-              AND movie_encoded IS NOT NULL
 
             UNION ALL
 
-            SELECT CAST(r.movie_id AS CHAR), NULL, NULL, NULL,
-                   r.rating, r.timestamp, rd.movie_encoded
-            FROM ratings r
-            JOIN ratings_dataset rd ON r.movie_id = rd.movie_id
-            WHERE r.timestamp IS NOT NULL
-              AND rd.movie_encoded IS NOT NULL
+            SELECT movie_id, rating, timestamp
+            FROM ratings
+            WHERE timestamp IS NOT NULL
         """)
-        MIN_RATING = 50
-        agg_key    = "movie_encoded"
+        cols = ["movie_id", "rating", "timestamp"]
 
     rows = cur.fetchall()
     db.close()
 
+    print(f"  DEBUG region={region}, MIN_RATING={MIN_RATING}, total rows={len(rows)}")
+
     if not rows:
         return []
 
-    cols = ["movie_id", "title", "genre", "year", "rating", "timestamp", "movie_encoded"]
-    df   = pd.DataFrame(rows, columns=cols)
+    # ---------------------------------------------------------------
+    # Bangun DataFrame
+    # ---------------------------------------------------------------
+    df = pd.DataFrame(rows, columns=cols)
     df["rating"]    = df["rating"].astype(float)
     df["timestamp"] = df["timestamp"].astype(float)
 
+    # ---------------------------------------------------------------
+    # Hitung time-decay weight
+    # ---------------------------------------------------------------
     ts_max   = df["timestamp"].max()
     ts_min   = df["timestamp"].min()
     ts_range = ts_max - ts_min if ts_max != ts_min else 1
@@ -310,8 +404,13 @@ def hitung_top10(region="global", limit=10):
     df["weight"]          = np.exp(-LAMBDA * df["delta_t_norm"])
     df["weighted_rating"] = df["rating"] * df["weight"]
 
+    # ---------------------------------------------------------------
+    # Agregasi per film
+    # ---------------------------------------------------------------
     if region == "indonesia":
-        info = df.groupby(agg_key).first()[["title", "genre", "year"]].reset_index()
+        info = df.groupby(agg_key).first()[
+            ["title", "genre", "year"]
+        ].reset_index()
 
     agg = df.groupby(agg_key).agg(
         avg_rating   = ("rating",          "mean"),
@@ -323,74 +422,95 @@ def hitung_top10(region="global", limit=10):
         agg = agg.merge(info, on=agg_key, how="left")
 
     agg = agg[agg["total_rating"] >= MIN_RATING].copy()
+
+    print(f"  DEBUG agg setelah filter: {len(agg)} film")
+
     if agg.empty:
         return []
 
+    # ---------------------------------------------------------------
+    # Hitung skor akhir
+    # ---------------------------------------------------------------
     max_weighted = agg["weighted_avg"].max()
     agg["skor"]  = (agg["weighted_avg"] / max_weighted * 10).round(4)
-    top          = agg.nlargest(limit, "skor").reset_index(drop=True)
-    top["rank"]  = top.index + 1
+
+    top         = agg.nlargest(limit, "skor").reset_index(drop=True)
+    top["rank"] = top.index + 1
+
+    # ---------------------------------------------------------------
+    # Bangun hasil akhir dengan poster & deskripsi dari TMDb
+    # ---------------------------------------------------------------
+    hasil = []
 
     if region == "global":
-        if DF_MAP_MOVIE is not None:
-            top = top.merge(DF_MAP_MOVIE, on="movie_encoded", how="left")
-        else:
-            top["movieId"] = None
+        # Ambil judul dari tabel movies_ml1m
+        movie_ids = top["movie_id"].dropna().astype(int).tolist()
+        film_map  = {}
 
-        if DF_INFO_ML is not None:
-            top = top.merge(
-                DF_INFO_ML[["movieId", "title", "genres", "tahun_rilis"]],
-                on="movieId", how="left"
-            )
-        else:
-            top["title"] = None
-            top["genres"] = None
-            top["tahun_rilis"] = None
+        if movie_ids:
+            try:
+                db2  = get_db()
+                cur2 = db2.cursor()
+                placeholders = ",".join(["%s"] * len(movie_ids))
+                cur2.execute(
+                    f"SELECT id, title, genres, year FROM movies_ml1m WHERE id IN ({placeholders})",
+                    movie_ids
+                )
+                film_map = {row["id"]: row for row in cur2.fetchall()}
+                db2.close()
+            except Exception as e:
+                print(f"  ⚠️ Gagal ambil judul film: {e}")
 
-        if DF_INFO_NETFLIX is not None:
-            top = top.merge(
-                DF_INFO_NETFLIX[["movie_encoded", "title_netflix", "tahun_rilis_netflix"]],
-                on="movie_encoded", how="left"
-            )
-            top["title"]       = top["title"].fillna(top["title_netflix"])
-            top["tahun_rilis"] = top["tahun_rilis"].fillna(top["tahun_rilis_netflix"])
-            top["genres"]      = top["genres"].fillna("Netflix Collection")
-            top = top.drop(columns=["title_netflix", "tahun_rilis_netflix"])
+        for _, row in top.iterrows():
+            movie_id = int(row["movie_id"]) if pd.notna(row.get("movie_id")) else None
+            film     = film_map.get(movie_id, {})
 
-        top["title"]  = top["title"].fillna("Film #" + top["movie_encoded"].astype(str))
-        top["genres"] = top["genres"].fillna("Tidak diketahui")
+            title  = film.get("title", f"Film #{movie_id}")
+            genres = str(film.get("genres", "")).replace("|", ", ") if film.get("genres") else "Tidak diketahui"
+            tahun  = film.get("year")
 
-    hasil = []
-    for _, row in top.iterrows():
-        if region == "global":
-            title    = str(row["title"])
-            genres   = str(row["genres"]).replace("|", ", ") if pd.notna(row.get("genres")) else "Tidak diketahui"
-            tahun    = int(row["tahun_rilis"]) if pd.notna(row.get("tahun_rilis")) else None
-            movie_id = int(row["movieId"]) if pd.notna(row.get("movieId")) else None
-        else:
-            title    = str(row["title"]) if pd.notna(row.get("title")) else str(row["movie_id"])
-            genres   = str(row["genre"]).replace("|", ", ") if pd.notna(row.get("genre")) else "Tidak diketahui"
-            tahun    = int(row["year"]) if pd.notna(row.get("year")) else None
-            movie_id = str(row["movie_id"])
+            judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+            poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
 
-        judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
-        poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+            hasil.append({
+                "rank"        : int(row["rank"]),
+                "movie_id"    : movie_id,
+                "title"       : title,
+                "genre"       : genres,
+                "year"        : int(tahun) if tahun and pd.notna(tahun) else None,
+                "avg_rating"  : round(float(row["avg_rating"]), 2),
+                "weighted_avg": round(float(row["weighted_avg"]), 4),
+                "total_rating": int(row["total_rating"]),
+                "skor"        : round(float(row["skor"]), 4),
+                "poster"      : poster_url or "",
+                "description" : deskripsi or "Deskripsi tidak tersedia.",
+            })
 
-        hasil.append({
-            "rank"        : int(row["rank"]),
-            "movie_id"    : movie_id,
-            "title"       : title,
-            "genre"       : genres,
-            "year"        : tahun,
-            "avg_rating"  : round(float(row["avg_rating"]), 2),
-            "weighted_avg": round(float(row["weighted_avg"]), 4),
-            "total_rating": int(row["total_rating"]),
-            "skor"        : round(float(row["skor"]), 4),
-            "poster"      : poster_url or "",
-            "description" : deskripsi or "Deskripsi tidak tersedia.",
-        })
+    else:
+        # Indonesia — judul sudah ada di DataFrame
+        for _, row in top.iterrows():
+            title  = str(row["title"]) if pd.notna(row.get("title")) else str(row["movie_id"])
+            genres = str(row["genre"]).replace("|", ", ") if pd.notna(row.get("genre")) else "Tidak diketahui"
+            tahun  = int(row["year"]) if pd.notna(row.get("year")) else None
+
+            poster_url, deskripsi = ambil_detail_tmdb(title, tahun)
+
+            hasil.append({
+                "rank"        : int(row["rank"]),
+                "movie_id"    : str(row["movie_id"]),
+                "title"       : title,
+                "genre"       : genres,
+                "year"        : tahun,
+                "avg_rating"  : round(float(row["avg_rating"]), 2),
+                "weighted_avg": round(float(row["weighted_avg"]), 4),
+                "total_rating": int(row["total_rating"]),
+                "skor"        : round(float(row["skor"]), 4),
+                "poster"      : poster_url or "",
+                "description" : deskripsi or "Deskripsi tidak tersedia.",
+            })
 
     return hasil
+
  
 # =============================================================================
 # ENDPOINT 1 — CEK STATUS API
@@ -585,6 +705,61 @@ def detail_film(movie_id):
                         "ulasan"      : [],
                     },
                 })
+            
+            # 3. Coba cari di tabel movies_ml1m (MovieLens 1M)
+        if movie_id.isdigit():
+            try:
+                db3  = get_db()
+                cur3 = db3.cursor()
+                cur3.execute("""
+                    SELECT
+                        m.id, m.title, m.genres AS genre, m.year,
+                        ROUND(AVG(r.rating), 2) AS avg_rating,
+                        COUNT(r.id)             AS total_rating
+                    FROM movies_ml1m m
+                    LEFT JOIN ratings_ml1m r ON m.id = r.movie_id
+                    WHERE m.id = %s
+                    GROUP BY m.id
+                """, (int(movie_id),))
+                film = cur3.fetchone()
+
+                if film:
+                    # Ambil ulasan dari tabel ratings (user website)
+                    cur3.execute("""
+                        SELECT r.rating, r.created_at, u.name AS user_name
+                        FROM ratings r
+                        JOIN users u ON r.user_id = u.id
+                        WHERE r.movie_id = %s
+                        ORDER BY r.created_at DESC
+                        LIMIT 10
+                    """, (int(movie_id),))
+                    ulasan = cur3.fetchall()
+                    db3.close()
+
+                    title  = str(film["title"])
+                    genres = str(film["genre"]).replace("|", ", ") if film["genre"] else "Tidak diketahui"
+                    tahun  = film["year"]
+
+                    judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+                    poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+
+                    return jsonify({
+                        "status": "ok",
+                        "data"  : {
+                            "id"          : int(movie_id),
+                            "title"       : title,
+                            "genre"       : genres,
+                            "year"        : int(tahun) if tahun else None,
+                            "poster"      : poster_url or "",
+                            "description" : deskripsi or "Deskripsi tidak tersedia.",
+                            "avg_rating"  : float(film["avg_rating"]) if film["avg_rating"] else 0.0,
+                            "total_rating": int(film["total_rating"]),
+                            "ulasan"      : ulasan or [],
+                        },
+                    })
+                db3.close()
+            except Exception as e:
+                print(f"  ⚠️ Error cari di movies_ml1m: {e}")
 
         # 4. Tidak ketemu di mana pun
         return jsonify({"status": "error", "message": "Film tidak ditemukan"}), 404
@@ -602,59 +777,69 @@ def detail_film(movie_id):
 @app.route("/api/ratings", methods=["POST"])
 def simpan_rating():
     data = request.get_json()
- 
+
     user_id  = data.get("user_id")
     movie_id = data.get("movie_id")
     rating   = data.get("rating")
- 
+
     # Validasi input
     if not all([user_id, movie_id, rating]):
         return jsonify({
             "status" : "error",
             "message": "user_id, movie_id, dan rating wajib diisi"
         }), 400
- 
+
     if not (0.5 <= float(rating) <= 5.0):
         return jsonify({
             "status" : "error",
             "message": "Rating harus antara 0.5 dan 5.0"
         }), 400
- 
+
     try:
-        db  = get_db()
+        db = get_db()
+
+        # Pastikan film ada (satu kali saja, tanpa int())
+        if not pastikan_film_ada(db, movie_id):
+            db.close()
+            return jsonify({
+                "status" : "error",
+                "message": f"Film dengan id {movie_id} tidak dikenal"
+            }), 404
+
         cur = db.cursor()
- 
+
         # Cek apakah user sudah pernah rating film ini
         cur.execute(
             "SELECT id FROM ratings WHERE user_id=%s AND movie_id=%s",
-            (user_id, movie_id)
+            (user_id, str(movie_id))
         )
         existing = cur.fetchone()
- 
+
         timestamp_now = int(datetime.now().timestamp())
- 
+
         if existing:
-            # Update rating yang sudah ada
             cur.execute("""
                 UPDATE ratings
                 SET rating=%s, timestamp=%s, created_at=NOW()
                 WHERE user_id=%s AND movie_id=%s
-            """, (rating, timestamp_now, user_id, movie_id))
+            """, (rating, timestamp_now, user_id, str(movie_id)))
             aksi = "updated"
         else:
-            # Insert rating baru
             cur.execute("""
                 INSERT INTO ratings (user_id, movie_id, rating, timestamp, created_at)
                 VALUES (%s, %s, %s, %s, NOW())
-            """, (user_id, movie_id, rating, timestamp_now))
+            """, (user_id, str(movie_id), rating, timestamp_now))
             aksi = "created"
- 
+
         db.commit()
+
+        # Reset cache Top-10 dan trigger recompute di background
         _CACHE_REALTIME["global"]["last_updated"]    = 0
         _CACHE_REALTIME["indonesia"]["last_updated"] = 0
         print("  🔄 Cache Top-10 direset karena ada rating baru")
+
         db.close()
- 
+
         return jsonify({
             "status" : "ok",
             "message": f"Rating berhasil {aksi}",
@@ -665,7 +850,7 @@ def simpan_rating():
                 "aksi"    : aksi,
             }
         })
- 
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
     
@@ -678,58 +863,61 @@ def top_films_realtime():
     import time
     region = request.args.get("region", "global")
     limit  = int(request.args.get("limit", 10))
+    offset = int(request.args.get("offset",  0))
 
     if region not in ["global", "indonesia"]:
         region = "global"
 
-    cache  = _CACHE_REALTIME[region]
-    now    = time.time()
+    cache = _CACHE_REALTIME[region]
+    now   = time.time()
 
-    # Hitung ulang hanya kalau cache expired
     if cache["data"] is None or (now - cache["last_updated"]) > _CACHE_TTL:
         print(f"  ⏳ Menghitung ulang Top-10 {region}...")
         try:
-            cache["data"]         = hitung_top10(region, limit)
+            cache["data"]         = hitung_top10(region, 30)  # selalu simpan 30
             cache["last_updated"] = now
             print(f"  ✅ Top-10 {region} selesai dihitung")
         except Exception as e:
+            print(f"  ❌ Error: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
     else:
         print(f"  ✅ Top-10 {region} diambil dari cache")
 
+    # Pastikan data tidak None sebelum len()
+    semua_data = cache["data"] or []
+    data       = semua_data[offset : offset + limit]
+
     return jsonify({
         "status" : "ok",
         "region" : region,
-        "total"  : len(cache["data"]),
+        "total"  : len(data),
         "source" : "realtime",
-        "data"   : cache["data"],
+        "data"   : data,
     })
  
 # =============================================================================
 # ENDPOINT 5 — REKOMENDASI FILM
 # GET /api/recommend/<user_id>?k=20&top_n=10
 # =============================================================================
- 
 @app.route("/api/recommend/<int:user_id>", methods=["GET"])
 def rekomendasi(user_id):
     K     = int(request.args.get("k",     DEFAULT_K))
     top_n = int(request.args.get("top_n", DEFAULT_TOP_N))
- 
-    if SIM_MATRIX is None or MATRIX_USER_ITEM is None:
+
+    if SIM_WEIGHTED is None and SIM_BASELINE is None:
         return jsonify({
             "status" : "error",
-            "message": "Model belum dimuat. Pastikan file .npy tersedia di folder model/"
+            "message": "Model belum dimuat."
         }), 503
- 
-    # Konversi user_id → user_encoded
+
     user_encoded = get_user_encoded(user_id)
     if user_encoded is None:
         return jsonify({
             "status" : "error",
-            "message": f"User ID {user_id} tidak ditemukan di data training"
+            "message": f"User ID {user_id} tidak ditemukan"
         }), 404
- 
-    # Ambil film yang sudah dirating user dari DB
+
+    # Ambil film yang sudah dirating user
     try:
         db  = get_db()
         cur = db.cursor()
@@ -741,83 +929,85 @@ def rekomendasi(user_id):
         db.close()
     except:
         rated_movie_ids = set()
- 
-    # Generate prediksi untuk semua film yang belum dirating
-    prediksi_list = []
- 
-    for movie_enc in range(N_MOVIES):
-        # Konversi movie_encoded → movie_id asli untuk cek DB
-        if DF_MAP_MOVIE is not None:
-            row = DF_MAP_MOVIE[DF_MAP_MOVIE["movie_encoded"] == movie_enc]
-            if len(row) > 0:
-                movie_id_asli = int(row["movieId"].values[0])
-                if movie_id_asli in rated_movie_ids:
-                    continue  # skip film yang sudah ditonton
- 
-        pred = prediksi_rating(user_encoded, movie_enc, K)
-        if pred is not None:
-            prediksi_list.append((movie_enc, pred))
- 
-    # Urutkan & ambil top_n
-    prediksi_list.sort(key=lambda x: x[1], reverse=True)
-    top_rekomendasi = prediksi_list[:top_n]
- 
-    if not top_rekomendasi:
-        return jsonify({
-            "status"  : "ok",
-            "user_id" : user_id,
-            "data"    : [],
-            "message" : "Tidak ada rekomendasi. User perlu memberi rating lebih banyak film.",
-        })
- 
-    # Ambil detail film dari MySQL
-    try:
-        db  = get_db()
-        cur = db.cursor()
- 
-        hasil = []
-        for rank, (movie_enc, skor) in enumerate(top_rekomendasi, 1):
-            movie_id_asli = None
+
+    # ---------------------------------------------------------------
+    # Generate prediksi untuk KEDUA model
+    # ---------------------------------------------------------------
+    def generate_rekomendasi(model_name):
+        prediksi_list = []
+        for movie_enc in range(N_MOVIES):
             if DF_MAP_MOVIE is not None:
                 row = DF_MAP_MOVIE[DF_MAP_MOVIE["movie_encoded"] == movie_enc]
                 if len(row) > 0:
-                    movie_id_asli = int(row["movieId"].values[0])
- 
-            film_data = {}
-            if movie_id_asli:
-                cur.execute("""
-                    SELECT
-                        m.*,
-                        ROUND(AVG(r.rating), 2) AS avg_rating,
-                        COUNT(r.id)             AS total_rating
-                    FROM movies m
-                    LEFT JOIN ratings r ON m.id = r.movie_id
-                    WHERE m.id = %s
-                    GROUP BY m.id
-                """, (movie_id_asli,))
-                film = cur.fetchone()
-                if film:
-                    film_data = format_film(film)
- 
-            hasil.append({
-                "rank"          : rank,
-                "skor_prediksi" : skor,
-                "movie_encoded" : movie_enc,
-                **film_data,
-            })
- 
-        db.close()
- 
-        return jsonify({
-            "status"  : "ok",
-            "user_id" : user_id,
-            "k"       : K,
-            "top_n"   : top_n,
-            "data"    : hasil,
-        })
- 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+                    movie_id_asli = str(int(row["movieId"].values[0]))
+                    if movie_id_asli in rated_movie_ids:
+                        continue
+
+            pred = prediksi_rating(user_encoded, movie_enc, K, model_name)
+            if pred is not None:
+                prediksi_list.append((movie_enc, pred))
+
+        prediksi_list.sort(key=lambda x: x[1], reverse=True)
+        top = prediksi_list[:top_n]
+
+        hasil = []
+        try:
+            db  = get_db()
+            cur = db.cursor()
+            for rank, (movie_enc, skor) in enumerate(top, 1):
+                movie_id_asli = None
+                if DF_MAP_MOVIE is not None:
+                    row = DF_MAP_MOVIE[DF_MAP_MOVIE["movie_encoded"] == movie_enc]
+                    if len(row) > 0:
+                        movie_id_asli = int(row["movieId"].values[0])
+
+                film_data = {}
+                if movie_id_asli:
+                    cur.execute("""
+                        SELECT id, title, genres AS genre, year
+                        FROM movies_ml1m
+                        WHERE id = %s
+                    """, (movie_id_asli,))
+                    film = cur.fetchone()
+                    if film:
+                        title  = str(film["title"])
+                        genres = str(film["genre"]).replace("|", ", ") if film["genre"] else "Tidak diketahui"
+                        tahun  = film["year"]
+                        judul_bersih = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+                        poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+                        film_data = {
+                            "id"         : movie_id_asli,
+                            "title"      : title,
+                            "genre"      : genres,
+                            "year"       : int(tahun) if tahun else None,
+                            "poster"     : poster_url or "",
+                            "description": deskripsi or "",
+                        }
+
+                hasil.append({
+                    "rank"          : rank,
+                    "skor_prediksi" : skor,
+                    "movie_encoded" : movie_enc,
+                    **film_data,
+                })
+            db.close()
+        except Exception as e:
+            print(f"  ⚠️ Error ambil detail film: {e}")
+
+        return hasil
+
+    # Jalankan kedua model
+    hasil_weighted = generate_rekomendasi("weighted") if SIM_WEIGHTED is not None else []
+    hasil_baseline = generate_rekomendasi("baseline") if SIM_BASELINE is not None else []
+
+    return jsonify({
+        "status"  : "ok",
+        "user_id" : user_id,
+        "k"       : K,
+        "top_n"   : top_n,
+        "weighted": hasil_weighted,  # dengan timestamp
+        "baseline": hasil_baseline,  # tanpa timestamp
+    })
  
  
 # =============================================================================

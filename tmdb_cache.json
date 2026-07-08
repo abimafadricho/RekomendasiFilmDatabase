@@ -162,5 +162,337 @@
   "Film #3531|None": {
     "poster": null,
     "description": null
+  },
+  "Sanjuro|1962": {
+    "poster": "https://image.tmdb.org/t/p/w500/t1xBAqYocNAFXho1GBrsH2XtPO.jpg",
+    "description": null
+  },
+  "Seven Samurai (The Magnificent Seven) (Shichinin no samurai)|1954": {
+    "poster": "https://image.tmdb.org/t/p/w500/8podTebyeH6sn31atpdappdgaCE.jpg",
+    "description": null
+  },
+  "For All Mankind|1989": {
+    "poster": "https://image.tmdb.org/t/p/w500/7k8ylisWiEGxdRSlAf6v4PWiAjH.jpg",
+    "description": null
+  },
+  "Shawshank Redemption, The|1994": {
+    "poster": "https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg",
+    "description": null
+  },
+  "Usual Suspects, The|1995": {
+    "poster": "https://image.tmdb.org/t/p/w500/99X2SgyFunJFXGAYnDv3sb9pnUD.jpg",
+    "description": null
+  },
+  "Godfather, The|1972": {
+    "poster": "https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
+    "description": "Patriark tua dari dinasti kejahatan terorganisir di New York City pascaperang mengalihkan kendali kerajaan klandestinnya kepada putra bungsunya yang enggan."
+  },
+  "Close Shave, A|1995": {
+    "poster": "https://image.tmdb.org/t/p/w500/qdIR27trLyrlJ5nmkbcG3Bomah6.jpg",
+    "description": null
+  },
+  "Sunset Blvd. (a.k.a. Sunset Boulevard)|1950": {
+    "poster": null,
+    "description": null
+  },
+  "Schindler's List|1993": {
+    "poster": "https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg",
+    "description": null
+  },
+  "Wrong Trousers, The|1993": {
+    "poster": "https://image.tmdb.org/t/p/w500/mV8SDTjkxrDxu0a0egvFz1lRPU7.jpg",
+    "description": null
+  },
+  "Rear Window|1954": {
+    "poster": "https://image.tmdb.org/t/p/w500/ILVF0eJxHMddjxeQhswFtpMtqx.jpg",
+    "description": null
+  },
+  "Penyalin Cahaya|2021": {
+    "poster": "https://image.tmdb.org/t/p/w500/m0rK7QEkivsD63Rvt2wgT5WGkUN.jpg",
+    "description": null
+  },
+  "Chain of Fools|2000": {
+    "poster": "https://image.tmdb.org/t/p/w500/rUwl3cfSf60aP1uvfb4QIEVMHuq.jpg",
+    "description": null
+  },
+  "Silence of the Palace, The (Saimt el Qusur)|1994": {
+    "poster": null,
+    "description": null
+  },
+  "Roula|1995": {
+    "poster": "https://image.tmdb.org/t/p/w500/7vlYt3ekwqi8zD6zZp6YatixdQN.jpg",
+    "description": null
+  },
+  "Last Emperor, The|1987": {
+    "poster": "https://image.tmdb.org/t/p/w500/7TILJhdeJAaEyDiwvJZMo9SQBoe.jpg",
+    "description": null
+  },
+  "It's a Wonderful Life|1946": {
+    "poster": "https://image.tmdb.org/t/p/w500/bSqt9rhDZx1Q7UZ86dBPKdNomp2.jpg",
+    "description": null
+  },
+  "Spring Fever USA (a.k.a. Lauderdale)|1989": {
+    "poster": null,
+    "description": null
+  },
+  "Titanic|1997": {
+    "poster": "https://image.tmdb.org/t/p/w500/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg",
+    "description": "Seorang bangsawan berusia tujuh belas tahun jatuh cinta dengan artis yang baik hati namun miskin di atas kapal R.M.S. Raksasa."
+  },
+  "Gandhi|1982": {
+    "poster": "https://image.tmdb.org/t/p/w500/rOXftt7SluxskrFrvU7qFJa5zeN.jpg",
+    "description": null
+  },
+  "Misérables, Les|1998": {
+    "poster": "https://image.tmdb.org/t/p/w500/3TOgmlIY8X3WjIjvU7Z0jqeNkyU.jpg",
+    "description": null
+  },
+  "Kramer Vs. Kramer|1979": {
+    "poster": "https://image.tmdb.org/t/p/w500/3CUP5V5SWfHSK4qvkZF7lMNyugY.jpg",
+    "description": null
+  },
+  "Lawrence of Arabia|1962": {
+    "poster": "https://image.tmdb.org/t/p/w500/AiAm0EtDvyGqNpVoieRw4u65vD1.jpg",
+    "description": "Epos pemenang Oscar ini menceritakan kisah nyata T.E. Lawrence, yang membantu menyatukan suku-suku Arab yang saling berperang untuk membalas Turki dalam Perang Dunia I."
+  },
+  "28 Days|2000": {
+    "poster": "https://image.tmdb.org/t/p/w500/tlgz7Shx0UavR5pyITeJ2mUHKFI.jpg",
+    "description": null
+  },
+  "Loves of Carmen, The|1948": {
+    "poster": "https://image.tmdb.org/t/p/w500/q6zuGR1lyWDRaBGpmKhddm5wgBX.jpg",
+    "description": null
+  },
+  "Voyage to the Beginning of the World|1997": {
+    "poster": "https://image.tmdb.org/t/p/w500/euRxVGm8A3Y1y2rUafr5vKi027g.jpg",
+    "description": null
+  },
+  "Gay Deceivers, The|1969": {
+    "poster": "https://image.tmdb.org/t/p/w500/cv8uIUY7xXzhW79ekw0dTbkD1ri.jpg",
+    "description": null
+  },
+  "Soft Toilet Seats|1999": {
+    "poster": "https://image.tmdb.org/t/p/w500/yzVQ1ufyk9LTr9LYmdPXYmQIFfb.jpg",
+    "description": null
+  },
+  "Aladdin|1992": {
+    "poster": "https://image.tmdb.org/t/p/w500/eLFfl7vS8dkeG1hKp5mwbm37V83.jpg",
+    "description": null
+  },
+  "Kolya|1996": {
+    "poster": "https://image.tmdb.org/t/p/w500/pb5GvmCdftxUCqw64HiDR3gHl4l.jpg",
+    "description": null
+  },
+  "Courage Under Fire|1996": {
+    "poster": "https://image.tmdb.org/t/p/w500/vDJurMJkrx049AiXa3DJx5Zx7a4.jpg",
+    "description": null
+  },
+  "Back Stage|2000": {
+    "poster": "https://image.tmdb.org/t/p/w500/ar6ACWikToZX7jlchaXz3kKzwVy.jpg",
+    "description": null
+  },
+  "Retroactive|1997": {
+    "poster": "https://image.tmdb.org/t/p/w500/7kOHEXDUTyyQQmI1VES1JofgPbj.jpg",
+    "description": null
+  },
+  "Monument Ave.|1998": {
+    "poster": "https://image.tmdb.org/t/p/w500/2IpSjfTzEWlHGTHAWNMToqznYn1.jpg",
+    "description": null
+  },
+  "Body Snatcher, The|1945": {
+    "poster": "https://image.tmdb.org/t/p/w500/1dOCP2ahMVlA95SivxhEdVvcXZE.jpg",
+    "description": null
+  },
+  "Stalingrad|1993": {
+    "poster": "https://image.tmdb.org/t/p/w500/9ImjUUSnVnVHgTxjq6OhANXyVVi.jpg",
+    "description": null
+  },
+  "October Sky|1999": {
+    "poster": "https://image.tmdb.org/t/p/w500/umWrXCIWdcYPf764ruvMRCpG3cA.jpg",
+    "description": null
+  },
+  "Nobody's Fool|1994": {
+    "poster": "https://image.tmdb.org/t/p/w500/xyAXFy6mOfgZcVWbceCeuTYadeq.jpg",
+    "description": null
+  },
+  "Incredible Journey, The|1963": {
+    "poster": "https://image.tmdb.org/t/p/w500/vOnusK40twHThlxz6sGXVyakATx.jpg",
+    "description": null
+  },
+  "Otello|1986": {
+    "poster": "https://image.tmdb.org/t/p/w500/emPz3c9jQdH5oJbpSUN7zwXLkin.jpg",
+    "description": null
+  },
+  "Angel on My Shoulder|1946": {
+    "poster": "https://image.tmdb.org/t/p/w500/tIDUVxp1yeq1Bw4KsdAaoEJtSsI.jpg",
+    "description": null
+  },
+  "Smoking/No Smoking|1993": {
+    "poster": "https://image.tmdb.org/t/p/w500/6dMgBWnLnRmYVseagm7XMi2WrXk.jpg",
+    "description": null
+  },
+  "Simon Birch|1998": {
+    "poster": "https://image.tmdb.org/t/p/w500/vRJcV9l3tLFoUWZel9RikS3nfJ6.jpg",
+    "description": null
+  },
+  "Beyond Rangoon|1995": {
+    "poster": "https://image.tmdb.org/t/p/w500/xTiy5kSP3Hetig7xB4E8INq5ron.jpg",
+    "description": null
+  },
+  "Hamlet|1990": {
+    "poster": "https://image.tmdb.org/t/p/w500/cB5HbaiFoQLLmGeN2eeJjBGrp8U.jpg",
+    "description": null
+  },
+  "Best Men|1997": {
+    "poster": "https://image.tmdb.org/t/p/w500/dDutboDhQeIGZ0VOMI8RkM7MWm3.jpg",
+    "description": null
+  },
+  "Good Will Hunting|1997": {
+    "poster": "https://image.tmdb.org/t/p/w500/z2FnLKpFi1HPO7BEJxdkv6hpJSU.jpg",
+    "description": null
+  },
+  "Raiders of the Lost Ark|1981": {
+    "poster": "https://image.tmdb.org/t/p/w500/ceG9VzoRAVGwivFU403Wc3AHRys.jpg",
+    "description": null
+  },
+  "Paths of Glory|1957": {
+    "poster": "https://image.tmdb.org/t/p/w500/p7OHwomA8UOhe3EhckF2IetBTh9.jpg",
+    "description": null
+  },
+  "Third Man, The|1949": {
+    "poster": "https://image.tmdb.org/t/p/w500/rO2Fq0AZZx9obs52KJdx4mRE8p5.jpg",
+    "description": null
+  },
+  "Star Wars: Episode IV - A New Hope|1977": {
+    "poster": "https://image.tmdb.org/t/p/w500/6FfCtAuVAW8XJjZ7eWeLibRLWTw.jpg",
+    "description": "Putri Leia ditangkap dan disandera oleh pasukan Kekaisaran jahat dalam upaya mereka untuk mengambil alih Kekaisaran galaksi. Venturesome Luke Skywalker dan kapten gagah tim Han Solo bersama dengan duo robot yang dicintai R2-D2 dan C-3PO untuk menyelamatkan putri cantik dan memulihkan kedamaian dan keadilan di Kekaisaran."
+  },
+  "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb|1963": {
+    "poster": null,
+    "description": null
+  },
+  "Wallace & Gromit: The Best of Aardman Animation|1996": {
+    "poster": "https://image.tmdb.org/t/p/w500/tWkYclnnChwoMMBFECsEjd5hb77.jpg",
+    "description": null
+  },
+  "To Kill a Mockingbird|1962": {
+    "poster": "https://image.tmdb.org/t/p/w500/gZycFUMLx2110dzK3nBNai7gfpM.jpg",
+    "description": null
+  },
+  "Double Indemnity|1944": {
+    "poster": "https://image.tmdb.org/t/p/w500/rVNYZZgfhwqVMMWlBmxOfWqnwCj.jpg",
+    "description": null
+  },
+  "Casablanca|1942": {
+    "poster": "https://image.tmdb.org/t/p/w500/lGCEKlJo2CnWydQj7aamY7s1S7Q.jpg",
+    "description": null
+  },
+  "World of Apu, The (Apur Sansar)|1959": {
+    "poster": "https://image.tmdb.org/t/p/w500/nl0jE2e1yGzO1CdbPUjDUCkCDd8.jpg",
+    "description": null
+  },
+  "Pather Panchali|1955": {
+    "poster": "https://image.tmdb.org/t/p/w500/9zDYaaWrIVQ0VlB0RcOkkAjHj5n.jpg",
+    "description": null
+  },
+  "Yojimbo|1961": {
+    "poster": "https://image.tmdb.org/t/p/w500/lIbwlZe5KHKfrFykpOTWHzPdqbO.jpg",
+    "description": null
+  },
+  "Sixth Sense, The|1999": {
+    "poster": "https://image.tmdb.org/t/p/w500/vOyfUXNFSnaTk7Vk5AjpsKTUWsu.jpg",
+    "description": null
+  },
+  "Maltese Falcon, The|1941": {
+    "poster": "https://image.tmdb.org/t/p/w500/bf4o6Uzw5wqLjdKwRuiDrN1xyvl.jpg",
+    "description": null
+  },
+  "Citizen Kane|1941": {
+    "poster": "https://image.tmdb.org/t/p/w500/sav0jxhqiH0bPr2vZFU0Kjt2nZL.jpg",
+    "description": null
+  },
+  "One Flew Over the Cuckoo's Nest|1975": {
+    "poster": "https://image.tmdb.org/t/p/w500/kjWsMh72V6d8KRLV4EOoSJLT1H7.jpg",
+    "description": null
+  },
+  "Bridge on the River Kwai, The|1957": {
+    "poster": "https://image.tmdb.org/t/p/w500/7paXMt2e3Tr5dLmEZOGgFEn2Vo7.jpg",
+    "description": null
+  },
+  "City Lights|1931": {
+    "poster": "https://image.tmdb.org/t/p/w500/ugmakEL5y294I5bXgiBqApuZpwc.jpg",
+    "description": null
+  },
+  "Janji Joni|2005": {
+    "poster": "https://image.tmdb.org/t/p/w500/mznTCufeOaXofs8LOWPjVFtH38M.jpg",
+    "description": "Seorang pria pengantar film menjanjikan seorang wanita muda yang cantik untuk mengantarkan film tepat waktu ke bioskop."
+  },
+  "Hamka & Siti Raham|2023": {
+    "poster": "https://image.tmdb.org/t/p/w500/ud7cpn0D9YeU99oOT1wf88ME2Kk.jpg",
+    "description": null
+  },
+  "The Raid|2011": {
+    "poster": "https://image.tmdb.org/t/p/w500/hEDknINqAaEcdzw6u83hpXWvZeX.jpg",
+    "description": "Sekelompok tim SWAT tiba di sebuah blok apartemen yang tidak terurus dengan misi menangkap pemiliknya seorang raja bandar narkotik bernama TAMA. Blok ini tidak pernah digerebek atau pun tersentuh oleh Polisi sebelumnya."
+  },
+  "Cek Toko Sebelah|2016": {
+    "poster": "https://image.tmdb.org/t/p/w500/ygOPhiygrijDa0E7x2ETWWXE6HP.jpg",
+    "description": "Erwin menikmati hidupnya dengan karir gemilang di usia muda, dan kekasih cantik yang tak kalah sukses, Natalie. Tapi semua jadi pelik saat Koh Afuk yang kesehatannya makin memburuk, ingin mewariskan toko sembakonya kepada Erwin, anak kesayangannya."
+  },
+  "Guru Bangsa: Tjokroaminoto|2015": {
+    "poster": "https://image.tmdb.org/t/p/w500/s707VRRDcyCSV638grkQ49qH55A.jpg",
+    "description": null
+  },
+  "Kartini|2017": {
+    "poster": "https://image.tmdb.org/t/p/w500/pQsRtAbSWNjnCO4saToN60SGojb.jpg",
+    "description": "Biografi Kartini dalam memperjuangkan pendidikan untuk semua kalangan"
+  },
+  "Seperti Dendam Rindu Harus Dibayar Tuntas|2021": {
+    "poster": "https://image.tmdb.org/t/p/w500/bvjKYCDI5M0M0mIv55NUPXTzGG3.jpg",
+    "description": null
+  },
+  "Tenggelamnya Kapal Van der Wijck|2013": {
+    "poster": "https://image.tmdb.org/t/p/w500/mopTj8jjSEAQpYLQSLH8GRGdOhb.jpg",
+    "description": "Nusantara 1930, dari tanah kelahirannya Makasar, Zainuddin berlayar menuju tanah kelahiran ayahnya di Batipuh, Padang Panjang. Diantara keindahan ranah negeri Minangkabau ia bertemu Hayati, gadis cantik jelita, bunga di persukuannya. Kedua muda mudi itu jatuh cinta. Apa daya adat dan istiadat yang kuat meruntuhkan cinta suci mereka berdua. Zainuddin hanya seorang melarat tak berbangsa, sementara Hayati perempuan Minang keturunan bangsawan."
+  },
+  "Ada Apa dengan Cinta?|2002": {
+    "poster": "https://image.tmdb.org/t/p/w500/u4eu24kJ2XR7W1lnwVACSC51HaY.jpg",
+    "description": "Bertemakan cinta di masa-masa SMA, Ada Apa dengan Cinta menampilkan Cinta (Dian Sastrowardoyo) sebagai seorang pelajar SMA. Ia langganan juara lomba puisi di sekolahnya yang rutin diadakan tiap tahun. Cerita berawal dari Alya (Ladya Cherill) yang tubuhnya memar karena kerap dipukuli sang ayah yang kerap cek-cok dengan ibunya. Alya adalah sahabat karib Cinta dengan teman-temannya yang lain seperti Carmen (Adinia Wirasti), Maura (Titi Kamal), dan Milly (Sissy Priscillia)"
+  },
+  "Nanti Kita Cerita tentang Hari Ini|2020": {
+    "poster": "https://image.tmdb.org/t/p/w500/DYNrFIkd5F4ZPkaUwaceyYR3H9.jpg",
+    "description": null
+  },
+  "Hafalan Shalat Delisa|2011": {
+    "poster": "https://image.tmdb.org/t/p/w500/76ltoEkrXnNitVPgyk8uA2yVXsv.jpg",
+    "description": null
+  },
+  "Soekarno|2013": {
+    "poster": "https://image.tmdb.org/t/p/w500/2GtBiy4ZcaF268ylgyOqMydEjqP.jpg",
+    "description": "Film Soekarno kembali hadir dalam menyambut HUT RI di tahun 2014 ini dalam versi yang lebih panjang dan lengkap. Cerita dimulai tahun 1920an, saat Sukarno muda tinggal di rumah HOS Cokroaminoto, di Surabaya. Dari Cokroaminoto, Sukarno belajar menundukkan hati rakyat. Rakyat merupakan inspirasi Soekarno melakukan perjuangan melawan penjajah. Keinginan Soekarno satu: melihat Indonesia merdeka!"
+  },
+  "Imperfect|2019": {
+    "poster": "https://image.tmdb.org/t/p/w500/2A6QSXOnDh1AjRy0qYOJBMbpLWG.jpg",
+    "description": "Diadaptasi dari buku berjudul sama karya Meira Anastasia."
+  },
+  "Sang Penari|2011": {
+    "poster": "https://image.tmdb.org/t/p/w500/llIrBYS5cHPdd9aQh8ZNWOss1Rd.jpg",
+    "description": null
+  },
+  "5 Cm|2012": {
+    "poster": "https://image.tmdb.org/t/p/w500/y43O9tj6yo4h1shx58YGBsbjme4.jpg",
+    "description": "Genta, Arial, Zafran, Riani dan Ian adalah lima remaja yang telah menjalin persahabatan belasan tahun lamanya. Suatu hari mereka berlima merasa “jenuh” dengan persahabatan mereka dan akhirnya kelimanya memutuskan untuk berpisah, tidak saling berkomunikasi satu sama lain selama tiga bulan lamanya."
+  },
+  "Autobiography|2022": {
+    "poster": "https://image.tmdb.org/t/p/w500/kt25dfq7Cc6vEjG8AH46YbhZoPC.jpg",
+    "description": null
+  },
+  "KKN di Desa Penari|2022": {
+    "poster": "https://image.tmdb.org/t/p/w500/63InZxeGgfNQCoWkImR14fB99AY.jpg",
+    "description": "Enam mahasiswa yang sedang melakukan kuliah kerja nyata di desa terpencil mendapatkan terror dari penaris mistis. Ternyata, salah satu dari mereka melanggar aturan paling fatal di desa tersebut."
+  },
+  "Yuni|2021": {
+    "poster": "https://image.tmdb.org/t/p/w500/hBfGYPk9hxqvRDpJj8YAlkjxTSe.jpg",
+    "description": null
   }
 }
