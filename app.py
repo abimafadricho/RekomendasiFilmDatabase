@@ -1054,7 +1054,7 @@ path_top10 = os.path.join(OUTPUT_DIR, "top10_films.csv")
 DF_TOP10   = pd.read_csv(path_top10) if os.path.exists(path_top10) else None
 print(f"  ✅ Top 10 films : {'Dimuat' if DF_TOP10 is not None else 'Tidak ada'}")
 
-path_top10_id = os.path.join(OUTPUT_DIR, "top10_films_indonesia.csv")
+path_top10_id = os.path.join(os.path.dirname(OUTPUT_DIR), "top10_films_indonesia.csv")
 DF_TOP10_ID   = pd.read_csv(path_top10_id) if os.path.exists(path_top10_id) else None
 print(f"  ✅ Top 10 Indonesia : {'Dimuat' if DF_TOP10_ID is not None else 'Tidak ada'}")
 
