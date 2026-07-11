@@ -24,7 +24,14 @@ _CACHE_REALTIME = {
     "global"    : {"data": None, "last_updated": 0},
     "indonesia" : {"data": None, "last_updated": 0},
 }
-_CACHE_TTL = 300  # detik — hitung ulang maksimal setiap 5 menit
+_CACHE_TTL = 300  
+
+# Cache untuk MAE dan RMSE
+_CACHE_METRICS = {
+    "data"        : None,
+    "last_updated": 0,
+}
+_METRICS_TTL = 86400  
 
 # =============================================================================
 # KONFIGURASI -
@@ -46,7 +53,7 @@ OUTPUT_DIR = "./dataset/processed/ml1m"
 # Konfigurasi model
 DEFAULT_K      = 20    
 DEFAULT_TOP_N  = 10     
-LAMBDA         = 0.3    
+LAMBDA         = 0.7    
  
  
 # =============================================================================
@@ -511,7 +518,57 @@ def hitung_top10(region="global", limit=30):
 
     return hasil
 
- 
+
+def hitung_mae_rmse(sample_size=None):
+    """Hitung MAE dan RMSE dari SELURUH test set (bukan sample)."""
+    db  = get_db()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT user_encoded, movie_encoded, rating
+        FROM ratings_test_ml1m
+        WHERE user_encoded IS NOT NULL
+          AND movie_encoded IS NOT NULL
+          AND user_encoded  < %s
+          AND movie_encoded < %s
+    """, (N_USERS, N_MOVIES))
+    rows = cur.fetchall()
+    db.close()
+
+    if not rows:
+        return None
+
+    y_true = []
+    y_pred = []
+
+    for row in rows:
+        pred = prediksi_rating(
+            int(row["user_encoded"]),
+            int(row["movie_encoded"]),
+            K=DEFAULT_K
+        )
+        if pred is not None:
+            y_true.append(float(row["rating"]))
+            y_pred.append(pred)
+
+    if len(y_true) < 10:
+        return None
+
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    mae  = float(np.mean(np.abs(y_true - y_pred)))
+    rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+
+    return {
+        "mae"        : round(mae,  4),
+        "rmse"       : round(rmse, 4),
+        "sample_size": len(y_true),
+        "total_test_rows": len(rows),
+        "model"      : "IBCF + Time-Decay Timestamp (λ=0.7)",
+        "k"          : DEFAULT_K,
+    }
+
 # =============================================================================
 # ENDPOINT 1 — CEK STATUS API
 # GET /api/status
@@ -603,6 +660,7 @@ def daftar_film():
  
 @app.route("/api/movies/<string:movie_id>", methods=["GET"])
 def detail_film(movie_id):
+    print(f"  DEBUG detail_film dipanggil: movie_id={movie_id}, isdigit={movie_id.isdigit()}")
     try:
         db  = get_db()
         cur = db.cursor()
@@ -706,6 +764,7 @@ def detail_film(movie_id):
                     },
                 })
             
+                
             # 3. Coba cari di tabel movies_ml1m (MovieLens 1M)
         if movie_id.isdigit():
             try:
@@ -760,8 +819,53 @@ def detail_film(movie_id):
                 db3.close()
             except Exception as e:
                 print(f"  ⚠️ Error cari di movies_ml1m: {e}")
+        
+        # 4. Cari di ratings_dataset_indonesia (film Indonesia posisi 11+)
+        if not movie_id.isdigit():
+            try:
+                db4  = get_db()
+                cur4 = db4.cursor()
+                cur4.execute("""
+                    SELECT
+                        movie_id,
+                        movie_title,
+                        genre,
+                        year,
+                        ROUND(AVG(rating), 2) AS avg_rating,
+                        COUNT(*)              AS total_rating
+                    FROM ratings_dataset_indonesia
+                    WHERE movie_id = %s
+                    GROUP BY movie_id, movie_title, genre, year
+                    LIMIT 1
+                """, (movie_id,))
+                film = cur4.fetchone()
+                db4.close()
 
-        # 4. Tidak ketemu di mana pun
+                if film:
+                    title  = str(film["movie_title"]) if film["movie_title"] else movie_id
+                    genres = str(film["genre"]).replace("|", ", ") if film["genre"] else "Tidak diketahui"
+                    tahun  = int(film["year"]) if film["year"] else None
+
+                    poster_url, deskripsi = ambil_detail_tmdb(title, tahun)
+
+                    return jsonify({
+                        "status": "ok",
+                        "data"  : {
+                            "id"          : movie_id,
+                            "title"       : title,
+                            "genre"       : genres,
+                            "year"        : tahun,
+                            "poster"      : poster_url or "",
+                            "description" : deskripsi or "Deskripsi tidak tersedia.",
+                            "avg_rating"  : float(film["avg_rating"]) if film["avg_rating"] else 0.0,
+                            "total_rating": int(film["total_rating"]),
+                            "ulasan"      : [],
+                        },
+                    })
+            except Exception as e:
+                print(f"  ⚠️ Gagal cari di ratings_dataset_indonesia: {e}")
+
+        # 5. Tidak ketemu di mana pun
         return jsonify({"status": "error", "message": "Film tidak ditemukan"}), 404
 
     except Exception as e:
@@ -1015,34 +1119,34 @@ def rekomendasi(user_id):
 # GET /api/ratings/<user_id>
 # =============================================================================
  
-@app.route("/api/ratings/<int:user_id>", methods=["GET"])
-def rating_user(user_id):
-    try:
-        db  = get_db()
-        cur = db.cursor()
+# @app.route("/api/ratings/<int:user_id>", methods=["GET"])
+# def rating_user(user_id):
+#     try:
+#         db  = get_db()
+#         cur = db.cursor()
  
-        cur.execute("""
-            SELECT
-                r.id, r.rating, r.created_at,
-                m.id AS movie_id, m.title, m.genre, m.year, m.poster
-            FROM ratings r
-            JOIN movies m ON r.movie_id = m.id
-            WHERE r.user_id = %s
-            ORDER BY r.created_at DESC
-        """, (user_id,))
+#         cur.execute("""
+#             SELECT
+#                 r.id, r.rating, r.created_at,
+#                 m.id AS movie_id, m.title, m.genre, m.year, m.poster
+#             FROM ratings r
+#             JOIN movies m ON r.movie_id = m.id
+#             WHERE r.user_id = %s
+#             ORDER BY r.created_at DESC
+#         """, (user_id,))
  
-        data = cur.fetchall()
-        db.close()
+#         data = cur.fetchall()
+#         db.close()
  
-        return jsonify({
-            "status"  : "ok",
-            "user_id" : user_id,
-            "total"   : len(data),
-            "data"    : data,
-        })
+#         return jsonify({
+#             "status"  : "ok",
+#             "user_id" : user_id,
+#             "total"   : len(data),
+#             "data"    : data,
+#         })
  
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+#     except Exception as e:
+#         return jsonify({"status": "error", "message": str(e)}), 500
  
 # =============================================================================
 # ENDPOINT 7 — TOP 10 FILM TERPOPULER BERDASARKAN RATING + TIMESTAMP
@@ -1134,6 +1238,162 @@ def top_films():
         "total"  : len(hasil),
         "data"   : hasil,
     })
+
+# =============================================================================
+# ENDPOINT — MAE & RMSE
+# GET /api/metrics
+# =============================================================================
+
+@app.route("/api/metrics", methods=["GET"])
+def metrics():
+    import time
+    force  = request.args.get("force", "false").lower() == "true"
+    now    = time.time()
+    cache  = _CACHE_METRICS
+
+    if force or cache["data"] is None or (now - cache["last_updated"]) > _METRICS_TTL:
+        print("  ⏳ Menghitung MAE & RMSE...")
+        try:
+            hasil = hitung_mae_rmse(sample_size=500)
+            if hasil:
+                cache["data"]         = hasil
+                cache["last_updated"] = now
+                print(f"  ✅ MAE={hasil['mae']}, RMSE={hasil['rmse']}")
+            else:
+                return jsonify({
+                    "status" : "error",
+                    "message": "Tidak cukup data untuk menghitung metrik"
+                }), 500
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+    else:
+        print("  ✅ Metrics diambil dari cache")
+
+    return jsonify({
+        "status": "ok",
+        "data"  : cache["data"],
+    })
+
+# =============================================================================
+# ENDPOINT — SEARCH FILM
+# GET /api/search?q=inception&region=global&limit=10
+# =============================================================================
+
+@app.route("/api/search", methods=["GET"])
+def search_film():
+    query  = request.args.get("q", "").strip()
+    region = request.args.get("region", "global")
+    limit  = int(request.args.get("limit", 10))
+
+    if not query or len(query) < 2:
+        return jsonify({
+            "status" : "error",
+            "message": "Kata kunci pencarian minimal 2 karakter"
+        }), 400
+
+    try:
+        hasil = []
+
+        if region == "indonesia":
+            # Cari di ratings_dataset_indonesia
+            db  = get_db()
+            cur = db.cursor()
+            cur.execute("""
+                SELECT
+                    movie_id,
+                    movie_title,
+                    genre,
+                    year,
+                    ROUND(AVG(rating), 2) AS avg_rating,
+                    COUNT(*)              AS total_rating
+                FROM ratings_dataset_indonesia
+                WHERE movie_title LIKE %s
+                GROUP BY movie_id, movie_title, genre, year
+                ORDER BY avg_rating DESC
+                LIMIT %s
+            """, (f"%{query}%", limit))
+            rows = cur.fetchall()
+            db.close()
+
+            for row in rows:
+                title  = str(row["movie_title"]) if row["movie_title"] else row["movie_id"]
+                genres = str(row["genre"]).replace("|", ", ") if row["genre"] else "Tidak diketahui"
+                tahun  = int(row["year"]) if row["year"] else None
+
+                poster_url, deskripsi = ambil_detail_tmdb(title, tahun)
+
+                hasil.append({
+                    "movie_id"    : str(row["movie_id"]),
+                    "title"       : title,
+                    "genre"       : genres,
+                    "year"        : tahun,
+                    "avg_rating"  : float(row["avg_rating"]) if row["avg_rating"] else 0.0,
+                    "total_rating": int(row["total_rating"]),
+                    "poster"      : poster_url or "",
+                    "description" : deskripsi or "Deskripsi tidak tersedia.",
+                })
+
+        else:
+            # Cari di movies_ml1m (Global) + movies (film tambahan admin)
+            db  = get_db()
+            cur = db.cursor()
+            cur.execute("""
+                SELECT
+                    m.id, m.title, m.genres, m.year,
+                    ROUND(AVG(r.rating), 2) AS avg_rating,
+                    COUNT(r.id)             AS total_rating
+                FROM movies_ml1m m
+                LEFT JOIN ratings_ml1m r ON m.id = r.movie_id
+                WHERE m.title LIKE %s
+                GROUP BY m.id, m.title, m.genres, m.year
+
+                UNION
+
+                SELECT
+                    m.id, m.title, m.genre AS genres, m.year,
+                    ROUND(AVG(r.rating), 2) AS avg_rating,
+                    COUNT(r.id)             AS total_rating
+                FROM movies m
+                LEFT JOIN ratings r ON m.id = r.movie_id
+                WHERE m.title LIKE %s
+                  AND m.id NOT IN (SELECT id FROM movies_ml1m)
+                GROUP BY m.id, m.title, m.genre, m.year
+
+                ORDER BY avg_rating DESC
+                LIMIT %s
+            """, (f"%{query}%", f"%{query}%", limit))
+            rows = cur.fetchall()
+            db.close()
+
+            for row in rows:
+                title  = str(row["title"])
+                genres = str(row["genres"]).replace("|", ", ") if row["genres"] else "Tidak diketahui"
+                tahun  = int(row["year"]) if row["year"] else None
+
+                judul_bersih          = title.rsplit(" (", 1)[0] if title.endswith(")") else title
+                poster_url, deskripsi = ambil_detail_tmdb(judul_bersih, tahun)
+
+                hasil.append({
+                    "movie_id"    : int(row["id"]),
+                    "title"       : title,
+                    "genre"       : genres,
+                    "year"        : tahun,
+                    "avg_rating"  : float(row["avg_rating"]) if row["avg_rating"] else 0.0,
+                    "total_rating": int(row["total_rating"]),
+                    "poster"      : poster_url or "",
+                    "description" : deskripsi or "Deskripsi tidak tersedia.",
+                })
+
+        return jsonify({
+            "status" : "ok",
+            "query"  : query,
+            "region" : region,
+            "total"  : len(hasil),
+            "data"   : hasil,
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
  
 # =============================================================================
 # JALANKAN SERVER
