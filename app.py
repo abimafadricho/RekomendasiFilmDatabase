@@ -3,6 +3,7 @@ from flask_cors import CORS
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
+from scipy.sparse import load_npz
 import pymysql
 import os
 import gc
@@ -24,6 +25,7 @@ _CACHE_REALTIME = {
     "global"    : {"data": None, "last_updated": 0},
     "indonesia" : {"data": None, "last_updated": 0},
 }
+_CACHE_METRICS_MULTI = {}
 _CACHE_TTL = 300  
 
 # Cache untuk MAE dan RMSE
@@ -108,18 +110,35 @@ else:
 # Load mapping & info film
 path_map_movie = os.path.join(OUTPUT_DIR, "mapping_movie.csv")
 path_map_user  = os.path.join(OUTPUT_DIR, "mapping_user.csv")
-path_info_film = os.path.join(OUTPUT_DIR, "info_film.csv")
- 
+
+
 DF_MAP_MOVIE  = pd.read_csv(path_map_movie)  if os.path.exists(path_map_movie)  else None
 DF_MAP_USER   = pd.read_csv(path_map_user)   if os.path.exists(path_map_user)   else None
-DF_INFO_FILM  = pd.read_csv(path_info_film)  if os.path.exists(path_info_film)  else None
  
+
 print(f"  ✅ Mapping movie : {'Dimuat' if DF_MAP_MOVIE  is not None else 'Tidak ada'}")
 print(f"  ✅ Mapping user  : {'Dimuat' if DF_MAP_USER   is not None else 'Tidak ada'}")
-print(f"  ✅ Info film     : {'Dimuat' if DF_INFO_FILM  is not None else 'Tidak ada'}")
+
 print("=" * 55)
- 
- 
+
+path_sim_id_weighted = os.path.join(MODEL_DIR, "sim_indonesia_weighted.npy")
+path_sim_id_baseline = os.path.join(MODEL_DIR, "sim_indonesia_baseline.npy")
+path_matrix_id       = os.path.join(MODEL_DIR, "mat_user_item_indonesia.npz")
+path_test_id         = os.path.join("dataset","processed", "indonesia", "test_indonesia.csv")
+
+SIM_ID_WEIGHTED = np.load(path_sim_id_weighted) if os.path.exists(path_sim_id_weighted) else None
+SIM_ID_BASELINE = np.load(path_sim_id_baseline) if os.path.exists(path_sim_id_baseline) else None
+MATRIX_ID       = load_npz(path_matrix_id) if os.path.exists(path_matrix_id) else None
+DF_TEST_INDO    = pd.read_csv(path_test_id) if os.path.exists(path_test_id) else None
+
+N_USERS_ID  = MATRIX_ID.shape[0] if MATRIX_ID is not None else 0
+N_MOVIES_ID = MATRIX_ID.shape[1] if MATRIX_ID is not None else 0
+
+print(f"  ✅ Model Indonesia : {'Dimuat' if SIM_ID_WEIGHTED is not None else 'Tidak ada'}") 
+
+print(f"  DEBUG cwd = {os.getcwd()}")
+print(f"  DEBUG path_test_id = {path_test_id}")
+print(f"  DEBUG exists = {os.path.exists(path_test_id)}")
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -569,6 +588,120 @@ def hitung_mae_rmse(sample_size=None):
         "k"          : DEFAULT_K,
     }
 
+DF_MAP_USER_ID  = pd.read_csv("dataset/processed/indonesia/mapping_user_indo.csv")
+DF_MAP_MOVIE_ID = pd.read_csv("dataset/processed/indonesia/mapping_movie_indo.csv")
+
+def get_user_encoded_indonesia(user_id):
+    row = DF_MAP_USER_ID[DF_MAP_USER_ID["user_id"] == user_id]
+    return int(row["user_encoded"].values[0]) if len(row) > 0 else None
+
+def get_movie_encoded_indonesia(movie_id):
+    row = DF_MAP_MOVIE_ID[DF_MAP_MOVIE_ID["movie_id"] == movie_id]
+    return int(row["movie_encoded"].values[0]) if len(row) > 0 else None
+
+def hitung_mae_rmse_production(region="global"):
+    """MAE/RMSE terhadap rating ASLI dari pengguna website (dinamis)."""
+    db  = get_db()
+    cur = db.cursor()
+    cur.execute("SELECT user_id, movie_id, rating FROM ratings")
+    rows = cur.fetchall()
+    db.close()
+
+    if not rows:
+        return None
+
+    y_true = []
+    y_pred = []
+
+    for row in rows:
+        movie_id_raw = str(row["movie_id"])
+        is_global    = movie_id_raw.isdigit()
+
+        if region == "global" and not is_global:
+            continue
+        if region == "indonesia" and is_global:
+            continue
+
+        if region == "global":
+            user_encoded  = get_user_encoded(row["user_id"])
+            movie_encoded = get_movie_encoded(int(movie_id_raw))
+            if user_encoded is None or movie_encoded is None:
+                continue
+            pred = prediksi_rating(user_encoded, movie_encoded, K=DEFAULT_K)
+        else:
+            # Untuk Indonesia: perlu mapping user_id & movie_id khusus dataset Indonesia
+            user_encoded  = get_user_encoded_indonesia(row["user_id"])
+            movie_encoded = get_movie_encoded_indonesia(movie_id_raw)
+            if user_encoded is None or movie_encoded is None:
+                continue
+            pred = prediksi_rating_indonesia(user_encoded, movie_encoded, K=DEFAULT_K)
+
+        if pred is not None:
+            y_true.append(float(row["rating"]))
+            y_pred.append(pred)
+
+    if len(y_true) < 5:
+        return None
+
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    mae  = float(np.mean(np.abs(y_true - y_pred)))
+    rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+
+    return {
+        "mae": round(mae, 4), "rmse": round(rmse, 4),
+        "sample_size": len(y_true), "total_rating_pengguna": len(rows),
+        "model": "IBCF + Time-Decay Timestamp (λ=0.7)", "k": DEFAULT_K,
+        "sumber": "rating_pengguna_realtime", "region": region,
+    }
+
+def prediksi_rating_indonesia(user_encoded, movie_encoded, K=DEFAULT_K, model="weighted"):
+    SIM_MATRIX = SIM_ID_WEIGHTED if model == "weighted" else SIM_ID_BASELINE
+    if SIM_MATRIX is None or MATRIX_ID is None:
+        return None
+    if user_encoded >= N_USERS_ID or movie_encoded >= N_MOVIES_ID:
+        return None
+    sim_scores   = SIM_MATRIX[movie_encoded]
+    rated_movies = MATRIX_ID[user_encoded].nonzero()[1]
+    if len(rated_movies) == 0:
+        return None
+    sim_rated = sim_scores[rated_movies]
+    if len(rated_movies) > K:
+        top_k_idx    = np.argsort(sim_rated)[::-1][:K]
+        rated_movies = rated_movies[top_k_idx]
+        sim_rated    = sim_rated[top_k_idx]
+    mask = sim_rated > 0
+    sim_rated, rated_movies = sim_rated[mask], rated_movies[mask]
+    if len(sim_rated) == 0:
+        return None
+    user_ratings = np.array(MATRIX_ID[user_encoded, rated_movies].todense()).flatten()
+    pembilang = np.dot(sim_rated.astype(np.float32), user_ratings)
+    penyebut  = np.sum(np.abs(sim_rated))
+    if penyebut == 0:
+        return None
+    pred = float(pembilang / penyebut)
+    return round(max(0.5, min(5.0, pred)), 2)
+
+
+def hitung_mae_rmse_indonesia():
+    if DF_TEST_INDO is None:
+        return None
+    y_true, y_pred = [], []
+    for _, row in DF_TEST_INDO.iterrows():
+        pred = prediksi_rating_indonesia(int(row["user_encoded"]), int(row["movie_encoded"]), K=DEFAULT_K)
+        if pred is not None:
+            y_true.append(float(row["rating"]))
+            y_pred.append(pred)
+    if len(y_true) < 10:
+        return None
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    mae  = float(np.mean(np.abs(y_true - y_pred)))
+    rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+    return {
+        "mae": round(mae, 4), "rmse": round(rmse, 4),
+        "sample_size": len(y_true), "total_test_rows": len(DF_TEST_INDO),
+        "model": "IBCF + Time-Decay Timestamp (λ=0.7)", "k": DEFAULT_K, "region": "indonesia",
+    }
+
 # =============================================================================
 # ENDPOINT 1 — CEK STATUS API
 # GET /api/status
@@ -773,13 +906,17 @@ def detail_film(movie_id):
                 cur3.execute("""
                     SELECT
                         m.id, m.title, m.genres AS genre, m.year,
-                        ROUND(AVG(r.rating), 2) AS avg_rating,
-                        COUNT(r.id)             AS total_rating
+                        ROUND(AVG(rating_gabungan.rating), 2) AS avg_rating,
+                        COUNT(rating_gabungan.rating)         AS total_rating
                     FROM movies_ml1m m
-                    LEFT JOIN ratings_ml1m r ON m.id = r.movie_id
+                    LEFT JOIN (
+                        SELECT movie_id, rating FROM ratings_ml1m
+                        UNION ALL
+                        SELECT movie_id, rating FROM ratings WHERE movie_id = %s
+                    ) AS rating_gabungan ON m.id = rating_gabungan.movie_id
                     WHERE m.id = %s
                     GROUP BY m.id
-                """, (int(movie_id),))
+                """, (movie_id, int(movie_id)))
                 film = cur3.fetchone()
 
                 if film:
@@ -1153,24 +1290,9 @@ def rekomendasi(user_id):
 # GET /api/top-films
 # =============================================================================
 
-# Load top10 saat startup
-path_top10 = os.path.join(OUTPUT_DIR, "top10_films.csv")
-DF_TOP10   = pd.read_csv(path_top10) if os.path.exists(path_top10) else None
-print(f"  ✅ Top 10 films : {'Dimuat' if DF_TOP10 is not None else 'Tidak ada'}")
-
 path_top10_id = os.path.join(os.path.dirname(OUTPUT_DIR), "top10_films_indonesia.csv")
 DF_TOP10_ID   = pd.read_csv(path_top10_id) if os.path.exists(path_top10_id) else None
 print(f"  ✅ Top 10 Indonesia : {'Dimuat' if DF_TOP10_ID is not None else 'Tidak ada'}")
-
-# Load info film Netflix
-path_info_nf = os.path.join(OUTPUT_DIR, "info_film_netflix.csv")
-DF_INFO_NETFLIX = pd.read_csv(path_info_nf) if os.path.exists(path_info_nf) else None
-print(f"  ✅ Info Netflix   : {'Dimuat' if DF_INFO_NETFLIX is not None else 'Tidak ada'}")
-
-# Load info film MovieLens (kalau belum ada)
-path_info_ml = os.path.join(OUTPUT_DIR, "info_film.csv")
-DF_INFO_ML = pd.read_csv(path_info_ml) if os.path.exists(path_info_ml) else None
-print(f"  ✅ Info MovieLens : {'Dimuat' if DF_INFO_ML is not None else 'Tidak ada'}")
 
 @app.route("/api/top-films", methods=["GET"])
 def top_films():
@@ -1248,17 +1370,28 @@ def top_films():
 def metrics():
     import time
     force  = request.args.get("force", "false").lower() == "true"
+    region = request.args.get("region", "global")       # global | indonesia
+    source = request.args.get("source", "test")          # test | production
     now    = time.time()
-    cache  = _CACHE_METRICS
+
+    cache_key = f"{region}_{source}"
+    if cache_key not in _CACHE_METRICS_MULTI:
+        _CACHE_METRICS_MULTI[cache_key] = {"data": None, "last_updated": 0}
+    cache = _CACHE_METRICS_MULTI[cache_key]
 
     if force or cache["data"] is None or (now - cache["last_updated"]) > _METRICS_TTL:
-        print("  ⏳ Menghitung MAE & RMSE...")
+        print(f"  ⏳ Menghitung MAE & RMSE (region={region}, source={source})...")
         try:
-            hasil = hitung_mae_rmse(sample_size=500)
+            if source == "production":
+                hasil = hitung_mae_rmse_production(region=region)
+            elif region == "indonesia":
+                hasil = hitung_mae_rmse_indonesia()
+            else:
+                hasil = hitung_mae_rmse(sample_size=None)
+
             if hasil:
-                cache["data"]         = hasil
+                cache["data"] = hasil
                 cache["last_updated"] = now
-                print(f"  ✅ MAE={hasil['mae']}, RMSE={hasil['rmse']}")
             else:
                 return jsonify({
                     "status" : "error",
@@ -1267,13 +1400,12 @@ def metrics():
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
     else:
-        print("  ✅ Metrics diambil dari cache")
+        print(f"  ✅ Metrics ({region}/{source}) diambil dari cache")
 
     return jsonify({
         "status": "ok",
         "data"  : cache["data"],
     })
-
 # =============================================================================
 # ENDPOINT — SEARCH FILM
 # GET /api/search?q=inception&region=global&limit=10
