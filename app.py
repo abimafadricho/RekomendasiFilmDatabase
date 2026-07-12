@@ -1256,34 +1256,43 @@ def rekomendasi(user_id):
 # GET /api/ratings/<user_id>
 # =============================================================================
  
-# @app.route("/api/ratings/<int:user_id>", methods=["GET"])
-# def rating_user(user_id):
-#     try:
-#         db  = get_db()
-#         cur = db.cursor()
- 
-#         cur.execute("""
-#             SELECT
-#                 r.id, r.rating, r.created_at,
-#                 m.id AS movie_id, m.title, m.genre, m.year, m.poster
-#             FROM ratings r
-#             JOIN movies m ON r.movie_id = m.id
-#             WHERE r.user_id = %s
-#             ORDER BY r.created_at DESC
-#         """, (user_id,))
- 
-#         data = cur.fetchall()
-#         db.close()
- 
-#         return jsonify({
-#             "status"  : "ok",
-#             "user_id" : user_id,
-#             "total"   : len(data),
-#             "data"    : data,
-#         })
- 
-#     except Exception as e:
-#         return jsonify({"status": "error", "message": str(e)}), 500
+@app.route("/api/ratings/<int:user_id>", methods=["GET"])
+def rating_user(user_id):
+    try:
+        db  = get_db()
+        cur = db.cursor()
+
+        cur.execute("""
+            SELECT
+                r.id, r.rating, r.created_at, r.movie_id,
+                COALESCE(m.title, ml.title, ri.movie_title, CONCAT('Film #', r.movie_id)) AS title,
+                COALESCE(m.genre, ml.genres, ri.genre) AS genre,
+                COALESCE(m.year, ml.year, ri.year) AS year,
+                m.poster AS poster
+            FROM ratings r
+            LEFT JOIN movies m
+                ON r.movie_id REGEXP '^[0-9]+$' AND m.id = CAST(r.movie_id AS UNSIGNED)
+            LEFT JOIN movies_ml1m ml
+                ON r.movie_id REGEXP '^[0-9]+$' AND ml.id = CAST(r.movie_id AS UNSIGNED)
+            LEFT JOIN ratings_dataset_indonesia ri
+                ON NOT (r.movie_id REGEXP '^[0-9]+$') AND ri.movie_id = r.movie_id
+            WHERE r.user_id = %s
+            GROUP BY r.id, r.rating, r.created_at, r.movie_id, title, genre, year, m.poster
+            ORDER BY r.created_at DESC
+        """, (user_id,))
+
+        data = cur.fetchall()
+        db.close()
+
+        return jsonify({
+            "status" : "ok",
+            "user_id": user_id,
+            "total"  : len(data),
+            "data"   : data,
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
  
 # =============================================================================
 # ENDPOINT 7 — TOP 10 FILM TERPOPULER BERDASARKAN RATING + TIMESTAMP
@@ -1293,6 +1302,10 @@ def rekomendasi(user_id):
 path_top10_id = os.path.join(os.path.dirname(OUTPUT_DIR), "top10_films_indonesia.csv")
 DF_TOP10_ID   = pd.read_csv(path_top10_id) if os.path.exists(path_top10_id) else None
 print(f"  ✅ Top 10 Indonesia : {'Dimuat' if DF_TOP10_ID is not None else 'Tidak ada'}")
+
+path_top10 = os.path.join(OUTPUT_DIR, "top10_films.csv")
+DF_TOP10   = pd.read_csv(path_top10) if os.path.exists(path_top10) else None
+print(f"  ✅ Top 10 films : {'Dimuat' if DF_TOP10 is not None else 'Tidak ada'}")
 
 @app.route("/api/top-films", methods=["GET"])
 def top_films():
